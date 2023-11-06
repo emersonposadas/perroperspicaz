@@ -1,2 +1,3 @@
-# perroperspicaz
-Perrito que detecta las falacias lógicas
+virtualenv myenv
+.\myenv\Scripts\activate.bat
+pip install python-telegram-bot python-dotenv openai
