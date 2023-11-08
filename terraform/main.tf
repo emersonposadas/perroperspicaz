@@ -34,15 +34,9 @@ resource "aws_security_group" "allow_ssh" {
   }
 }
 
-resource "aws_key_pair" "auth" {
-  key_name   = "my-key"
-  public_key = file("${path.module}/id_rsa.pub")
-}
-
 resource "aws_instance" "example" {
   ami                    = "ami-0a485299eeb98b979"
   instance_type          = "t3a.nano"
-  key_name               = aws_key_pair.auth.key_name
   subnet_id              = data.aws_subnet.default.id
   vpc_security_group_ids = [aws_security_group.allow_ssh.id]
   associate_public_ip_address = true
