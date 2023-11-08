@@ -70,7 +70,7 @@ resource "aws_instance" "example" {
               chmod 700 /home/"$ADMINUSER"/.ssh
 
               # Replace 'ssh-rsa AAA...' with the public key
-              echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCRGXnOAnsm4psKDqHg//OM9UxE4SqbAflOh+QiBQ/uUlXWrAq9oKVgQak+6dPvZv0XpZEA3dF5A5THy5R99Yz28chKnaNAZ1kkQYokRdFM+TlSJMr1SBUxY+JUOc0Neb0vzVlrt3aLC3yKNyhG81mHhDE2C1MDikbBNKBDNb/Napq5bLgeN3up3wve5DnXWVz9UoParw2nnYBP+Dgvp/71u0DHbjAAqkKN5/ErPv76a0z6WWn+F0Geb+jZzXRkAU4ibqEbMfdDZmnITn0eOMcg8pcJ4OiBTqv10Dhnws+PY5y++6b3N6T497PE2GmmftYCEwwKhsUqDLffuRzLaLsV rsa-key-20231107" > /home/chivoberrinches/.ssh/authorized_keys
+              echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCRGXnOAnsm4psKDqHg//OM9UxE4SqbAflOh+QiBQ/uUlXWrAq9oKVgQak+6dPvZv0XpZEA3dF5A5THy5R99Yz28chKnaNAZ1kkQYokRdFM+TlSJMr1SBUxY+JUOc0Neb0vzVlrt3aLC3yKNyhG81mHhDE2C1MDikbBNKBDNb/Napq5bLgeN3up3wve5DnXWVz9UoParw2nnYBP+Dgvp/71u0DHbjAAqkKN5/ErPv76a0z6WWn+F0Geb+jZzXRkAU4ibqEbMfdDZmnITn0eOMcg8pcJ4OiBTqv10Dhnws+PY5y++6b3N6T497PE2GmmftYCEwwKhsUqDLffuRzLaLsV rsa-key-20231107" > /home/"$ADMINUSER"/.ssh/authorized_keys
               chmod 600 /home/"$ADMINUSER"/.ssh/authorized_keys
               chown -R "$ADMINUSER":"$ADMINUSER" /home/"$ADMINUSER"/.ssh
 
