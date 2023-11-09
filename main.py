@@ -19,6 +19,9 @@ FALLACY_PROMPT = os.getenv('FALLACY_PROMPT')
 MUSIC_PROMPT = os.getenv('MUSIC_PROMPT')
 REPLY_TO_PRIVATE = os.getenv('REPLY_TO_PRIVATE', 'false').lower() == 'true'
 NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
+NEWSAPI_CATEGORY = os.getenv('NEWSAPI_CATEGORY', 'technology')
+NEWSAPI_LANGUAGE = os.getenv('NEWSAPI_LANGUAGE', 'en')
+NEWSAPI_PAGESIZE = os.getenv('NEWSAPI_PAGESIZE', '5')
 
 # Initialize NewsAPI
 newsapi = NewsApiClient(api_key=NEWSAPI_KEY)
@@ -84,11 +87,13 @@ async def send_reply(update: Update, context, text: str):
 async def get_top_headline(update: Update, context):
     try:
         # Fetch top headline
-        top_headlines = newsapi.get_top_headlines(language='en', page_size=1)
+        top_headlines = newsapi.get_top_headlines(language=NEWSAPI_LANGUAGE,
+                                                page_size=int(NEWSAPI_PAGESIZE))
         articles = top_headlines.get('articles')
 
         if articles:
-            article = articles[0]
+            # Select a random article from the list
+            article = random.choice(articles)
             title = article.get('title', 'No Title')
             description = article.get('description', 'No Description')
             url = article.get('url')
