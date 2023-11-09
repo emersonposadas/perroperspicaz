@@ -1,9 +1,11 @@
 import os
 import re
 import logging
+import random
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler
+
 from newsapi import NewsApiClient
 import openai
 
@@ -17,9 +19,6 @@ FALLACY_PROMPT = os.getenv('FALLACY_PROMPT')
 MUSIC_PROMPT = os.getenv('MUSIC_PROMPT')
 REPLY_TO_PRIVATE = os.getenv('REPLY_TO_PRIVATE', 'false').lower() == 'true'
 NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
-NEWSAPI_CATEGORY = os.getenv('NEWSAPI_CATEGORY', 'technology')
-NEWSAPI_LANGUAGE = os.getenv('NEWSAPI_LANGUAGE', 'en')
-NEWSAPI_COUNTRY = os.getenv('NEWSAPI_COUNTRY', 'us')
 
 # Initialize NewsAPI
 newsapi = NewsApiClient(api_key=NEWSAPI_KEY)
@@ -82,28 +81,31 @@ async def send_reply(update: Update, context, text: str):
         await update.message.reply_text(text)
         logger.info("Sent public reply.")
 
-async def get_top_technology_news(update: Update, context):
+async def get_top_headline(update: Update, context):
     try:
-        top_headlines = newsapi.get_top_headlines(
-            category=NEWSAPI_CATEGORY, 
-            language=NEWSAPI_LANGUAGE, 
-            country=NEWSAPI_COUNTRY
-        )
-        
-        if top_headlines['articles']:
-            first_article = top_headlines['articles'][0]
-            news_title = first_article['title']
-            news_description = first_article['description']
-            news_url = first_article['url']
-            response_message = f"Top Technology News: \n\n{news_title}\n\n{news_description}\n\nRead more: {news_url}"
-        else:
-            response_message = "Currently, there are no top technology news available."
-        
-        await send_reply(update, context, response_message)
+        # Fetch top headline
+        top_headlines = newsapi.get_top_headlines(language='en', page_size=1)
+        articles = top_headlines.get('articles')
 
+        if articles:
+            article = articles[0]
+            title = article.get('title', 'No Title')
+            description = article.get('description', 'No Description')
+            url = article.get('url')
+            image_url = article.get('urlToImage', None)
+
+            message = f"<b>{title}</b>\n\n{description}\n\n<a href='{url}'>Read more</a>"
+            if image_url:
+                media = InputMediaPhoto(media=image_url, caption=message, parse_mode='HTML')
+                await update.message.reply_media_group([media])
+            else:
+                await update.message.reply_text(message, parse_mode='HTML')
+            logger.info(f"Article Title: {title}")
+        else:
+            await update.message.reply_text("No top headlines found.")
     except Exception as e:
         logger.error(f"Error fetching news: {e}")
-        await send_reply(update, context, "Sorry, I couldn't fetch the news at the moment.")
+        await update.message.reply_text("An error occurred while fetching the news.")
 
 def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
@@ -112,7 +114,7 @@ def main():
     start_handler = CommandHandler('start', start)
     fallacy_handler = MessageHandler(filters.Regex(re.compile(r'[\U0001F914]')) & filters.UpdateType.MESSAGES, detect_fallacy)
     music_handler = CommandHandler('music', recommend_music)
-    noticia_handler = CommandHandler('noticia', get_top_technology_news)
+    noticia_handler = CommandHandler('noticia', get_top_headline)
 
     # Register handlers with the application
     application.add_handler(start_handler)
