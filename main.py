@@ -88,7 +88,8 @@ async def get_top_headline(update: Update, context):
     try:
         # Fetch top headline
         top_headlines = newsapi.get_top_headlines(language=NEWSAPI_LANGUAGE,
-                                                page_size=int(NEWSAPI_PAGESIZE))
+                                                  category=NEWSAPI_CATEGORY,
+                                                  page_size=int(NEWSAPI_PAGESIZE))
         articles = top_headlines.get('articles')
 
         if articles:
