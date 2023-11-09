@@ -4,6 +4,7 @@ import logging
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler
+from newsapi import NewsApiClient
 import openai
 
 # Load environment variables from .env file
@@ -11,15 +12,22 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 OPENAI_TOKEN = os.getenv('OPENAI_TOKEN')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
-OPENAI_ENGINE = os.getenv('OPENAI_ENGINE')
+OPENAI_ENGINE = os.getenv('OPENAI_ENGINE', 'gpt-4')  # Default to GPT-4 if not specified
 FALLACY_PROMPT = os.getenv('FALLACY_PROMPT')
 MUSIC_PROMPT = os.getenv('MUSIC_PROMPT')
 REPLY_TO_PRIVATE = os.getenv('REPLY_TO_PRIVATE', 'false').lower() == 'true'
+NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
+NEWSAPI_CATEGORY = os.getenv('NEWSAPI_CATEGORY', 'technology')
+NEWSAPI_LANGUAGE = os.getenv('NEWSAPI_LANGUAGE', 'en')
+NEWSAPI_COUNTRY = os.getenv('NEWSAPI_COUNTRY', 'us')
+
+# Initialize NewsAPI
+newsapi = NewsApiClient(api_key=NEWSAPI_KEY)
 
 # OpenAI API configuration
 openai.api_key = OPENAI_TOKEN
 
-# Logging filter to exclude 'HTTP Request:' logs
+# Apply logging filter and configuration
 class NoHTTPRequestFilter(logging.Filter):
     def filter(self, record):
         return not record.getMessage().startswith('HTTP Request:')
@@ -74,6 +82,29 @@ async def send_reply(update: Update, context, text: str):
         await update.message.reply_text(text)
         logger.info("Sent public reply.")
 
+async def get_top_technology_news(update: Update, context):
+    try:
+        top_headlines = newsapi.get_top_headlines(
+            category=NEWSAPI_CATEGORY, 
+            language=NEWSAPI_LANGUAGE, 
+            country=NEWSAPI_COUNTRY
+        )
+        
+        if top_headlines['articles']:
+            first_article = top_headlines['articles'][0]
+            news_title = first_article['title']
+            news_description = first_article['description']
+            news_url = first_article['url']
+            response_message = f"Top Technology News: \n\n{news_title}\n\n{news_description}\n\nRead more: {news_url}"
+        else:
+            response_message = "Currently, there are no top technology news available."
+        
+        await send_reply(update, context, response_message)
+
+    except Exception as e:
+        logger.error(f"Error fetching news: {e}")
+        await send_reply(update, context, "Sorry, I couldn't fetch the news at the moment.")
+
 def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
@@ -81,11 +112,13 @@ def main():
     start_handler = CommandHandler('start', start)
     fallacy_handler = MessageHandler(filters.Regex(re.compile(r'[\U0001F914]')) & filters.UpdateType.MESSAGES, detect_fallacy)
     music_handler = CommandHandler('music', recommend_music)
+    noticia_handler = CommandHandler('noticia', get_top_technology_news)
 
     # Register handlers with the application
     application.add_handler(start_handler)
     application.add_handler(fallacy_handler)
     application.add_handler(music_handler)
+    application.add_handler(noticia_handler)
 
     application.run_polling()
 
