@@ -2,8 +2,9 @@ import os
 import re
 import logging
 import random
+import time
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
+from telegram import Update, InputMediaPhoto
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler
 
 from newsapi import NewsApiClient
@@ -14,7 +15,9 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 OPENAI_TOKEN = os.getenv('OPENAI_TOKEN')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
-OPENAI_ENGINE = os.getenv('OPENAI_ENGINE', 'gpt-4')  # Default to GPT-4 if not specified
+ENABLE_FILE_LOGGING = os.getenv('ENABLE_FILE_LOGGING', 'false').lower() == 'true'
+LOG_FILE_PATH = os.getenv('LOG_FILE_PATH', 'bot.log')
+OPENAI_ENGINE = os.getenv('OPENAI_ENGINE', 'gpt-4')
 FALLACY_PROMPT = os.getenv('FALLACY_PROMPT')
 MUSIC_PROMPT = os.getenv('MUSIC_PROMPT')
 REPLY_TO_PRIVATE = os.getenv('REPLY_TO_PRIVATE', 'false').lower() == 'true'
@@ -39,9 +42,16 @@ httpx_logger = logging.getLogger('httpx')
 httpx_logger.addFilter(NoHTTPRequestFilter())
 
 # Logging configuration
-logging.basicConfig(level=getattr(logging, LOG_LEVEL),
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    handlers=[logging.StreamHandler()])
+
+if ENABLE_FILE_LOGGING:
+    file_handler = logging.FileHandler(LOG_FILE_PATH)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(file_handler)
+
+    logger = logging.getLogger(__name__)
 
 def setup_openai_response(prompt_template, message_text):
     try:
@@ -89,7 +99,7 @@ async def get_top_headline(update: Update, context):
         # Fetch top headline
         top_headlines = newsapi.get_top_headlines(language=NEWSAPI_LANGUAGE,
                                                   category=NEWSAPI_CATEGORY,
-                                                  page_size=int(NEWSAPI_PAGESIZE))
+                                                page_size=int(NEWSAPI_PAGESIZE))
         articles = top_headlines.get('articles')
 
         if articles:
@@ -128,7 +138,15 @@ def main():
     application.add_handler(music_handler)
     application.add_handler(noticia_handler)
 
-    application.run_polling()
+    while True:
+       try:
+           application.run_polling()
+       except telegram.error.NetworkError as e:
+           logger.error(f"Network error encountered: {e}")
+           time.sleep(5)  # Wait for 5 seconds before retrying
+       except Exception as e:
+           logger.error(f"Unexpected error: {e}")
+           break  # Exit the loop for unexpected errors
 
 if __name__ == '__main__':
     main()
