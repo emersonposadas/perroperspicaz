@@ -3,6 +3,7 @@ import re
 import logging
 import random
 import time
+import json
 from dotenv import load_dotenv
 from telegram import Update, InputMediaPhoto
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler, CallbackContext
@@ -76,40 +77,7 @@ async def detect_fallacy(update: Update, context):
         answer = setup_openai_response(FALLACY_PROMPT, replied_message.text)
         await send_reply(update, context, answer)
 
-def generate_newsapi_query(user_input):
-    logger.info(f"Generando consulta para OpenAI con entrada de usuario: {user_input}")
-
-    # Crear un prompt para OpenAI
-    prompt = f"Convertir la siguiente entrada de usuario en una consulta estructurada para la News API: '{user_input}'. Incluir parámetros como 'q', 'from', 'to', 'language', 'sortBy', etc."
-
-    # Consultar a OpenAI
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=100
-    )
-
-    # Interpretar la respuesta
-    structured_query = response.choices[0].text.strip()
-    logger.info(f"Consulta estructurada generada: {structured_query}")
-
-    # Convertir la cadena de consulta en un diccionario
-    query_dict = parse_qs(structured_query)
-    # Convertir los valores de lista en valores únicos
-    query_params = {k: v[0] for k, v in query_dict.items() if v}
-
-    return query_params
-
-async def send_reply(update: Update, context, text: str):
-    if update.message.chat.type == 'private' and REPLY_TO_PRIVATE:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
-        logger.info("Sent private reply.")
-    else:
-        await update.message.reply_text(text)
-        logger.info("Sent public reply.")
-
 def fetch_news(query_params):
-    # Asegúrate de que pageSize esté incluido en los parámetros
     query_params['page_size'] = NEWSAPI_PAGESIZE
     articles = newsapi.get_everything(**query_params)
     return articles
@@ -124,34 +92,33 @@ def format_multiple_articles_response(articles):
         url=article.get('url', '#'), title=article.get('title', 'No Title')) for article in articles]
     return '\n'.join(formatted_articles)
 
-def select_random_articles(articles, number=5):
-    return random.sample(articles, min(number, len(articles))) if articles else []
-
 async def handle_news_request(update: Update, context: CallbackContext):
     user_input = ' '.join(context.args)
+    formatted_response = "No news relevant to your request has been found."
 
     if not user_input:
-        # Búsqueda de noticias con un término genérico
         default_param = 'q'
         default_value = 'general'
-        logger.info(f"Realizando búsqueda de noticias con parámetro por defecto: {default_value}")
+        logger.info(f"Performing news search with default parameter: {default_value}")
         news_response = fetch_news({default_param: default_value, 'page_size': NEWSAPI_PAGESIZE})
-        if not news_response['articles']:
-            await update.message.reply_text("No se encontraron noticias.")
-            return
-        random_article = random.choice(news_response['articles'])
-        formatted_response = format_single_article_response(random_article)
-        logger.info(f"Artículo seleccionado al azar: {random_article['title']}")
+        if news_response['articles']:
+            random_article = random.choice(news_response['articles'])
+            formatted_response = format_single_article_response(random_article)
+            logger.info(f"Randomly selected item: {random_article['title']}")
     else:
-        query_params = generate_newsapi_query(user_input)
-        logger.info(f"Parámetros de consulta para News API: {query_params}")
-
+        query_params = {
+            'q': user_input,
+            'page_size': NEWSAPI_PAGESIZE
+        }
+        logger.info(f"Performing news search with user parameters: {query_params}")
         try:
             news_response = newsapi.get_everything(**query_params)
+            if news_response['articles']:
+                selected_articles = random.sample(news_response['articles'], min(5, len(news_response['articles'])))
+                formatted_response = format_multiple_articles_response(selected_articles)
+                logger.info(f"Selected articles: {[article['title'] for article in selected_articles]}")
         except Exception as e:
-            logger.error(f"Error al consultar la News API: {e}")
-            await update.message.reply_text("Hubo un error al procesar tu solicitud.")
-            return
+            logger.error(f"Error when querying the News API: {e}")
 
     await update.message.reply_text(formatted_response, parse_mode='HTML', disable_web_page_preview=True)
 
