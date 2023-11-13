@@ -5,13 +5,11 @@ import random
 import time
 import pickle
 from dotenv import load_dotenv
-from telegram import Update, InputMediaPhoto
+from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler, CallbackContext
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from newsapi import NewsApiClient
-from urllib.parse import parse_qs
 import openai
 
 # Load environment variables from .env file
@@ -27,6 +25,8 @@ REPLY_TO_PRIVATE = os.getenv('REPLY_TO_PRIVATE', 'false').lower() == 'true'
 NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
 NEWSAPI_PAGESIZE = int(os.getenv('NEWSAPI_PAGESIZE', '50'))
 YT_PLAYLIST_ID = os.getenv('YT_PLAYLIST_ID')
+global youtube_service
+youtube_service = None
 
 # Initialize NewsAPI
 newsapi = NewsApiClient(api_key=NEWSAPI_KEY)
@@ -69,6 +69,7 @@ def setup_openai_response(prompt_template, message_text):
         return "An error occurred while processing the text."
 
 def add_song_to_playlist(youtube, song_url, playlist_id):
+    global youtube_service
     # Extract the video ID from the YouTube URL
     video_id = extract_video_id(song_url)
 
@@ -92,9 +93,9 @@ def add_song_to_playlist(youtube, song_url, playlist_id):
         return "There was an error adding the song to the playlist."
 
 async def add_song(update: Update, context: CallbackContext):
-    youtube = get_authenticated_service()
-    if not youtube:
-        await update.message.reply_text("Authentication failed.")
+    global youtube_service
+    if not youtube_service:
+        await update.message.reply_text("YouTube service is not initialized.")
         return
 
     user_input = ' '.join(context.args)
@@ -103,7 +104,7 @@ async def add_song(update: Update, context: CallbackContext):
         return
 
     playlist_id = YT_PLAYLIST_ID  # Replace with your playlist ID
-    result = add_song_to_playlist(youtube, user_input, playlist_id)
+    result = add_song_to_playlist(youtube_service, user_input, playlist_id)
     await update.message.reply_text(result)
 
 def extract_video_id(song_url):
@@ -120,15 +121,13 @@ def extract_video_id(song_url):
 
 def get_authenticated_service():
     creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
+    token_file = 'token.pickle'
+
+    if os.path.exists(token_file):
+        with open(token_file, 'rb') as token:
             creds = pickle.load(token)
 
-    if creds and creds.valid:
-        return build('youtube', 'v3', credentials=creds)
-    else:
-        print("No valid token.pickle file was found. Please authenticate manually.")
-        return None
+    return build('youtube', 'v3', credentials=creds)
 
 async def start(update: Update, context):
     welcome_text = ("Hi! I'm your Telegram assistant ready to help you with logical fallacies and the latest news.\n"
@@ -201,6 +200,12 @@ async def handle_news_request(update: Update, context: CallbackContext):
 
 def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    global youtube_service
+    youtube_service = get_authenticated_service()
+    if not youtube_service:
+        logger.error("Failed to authenticate with YouTube. Exiting.")
+        return
 
     # Handlers
     start_handler = CommandHandler('start', start)
