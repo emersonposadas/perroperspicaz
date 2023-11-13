@@ -87,10 +87,11 @@ def add_song_to_playlist(youtube, song_url, playlist_id):
             }
         )
         response = request.execute()
+        logger.info(f"Added video with ID {video_id} to playlist {playlist_id}")
         return f"Song added to playlist: {response['snippet']['title']}"
     except HttpError as e:
-        print(f"Error while adding the song: {e}")
-        return "There was an error adding the song to the playlist."
+        logger.error(f"Error adding song to playlist: {e}")
+        return "Failed to add song to playlist."
 
 async def add_song(update: Update, context: CallbackContext):
     global youtube_service
@@ -103,9 +104,33 @@ async def add_song(update: Update, context: CallbackContext):
         await update.message.reply_text("Please send a YouTube song URL.")
         return
 
-    playlist_id = YT_PLAYLIST_ID  # Replace with your playlist ID
+    playlist_id = YT_PLAYLIST_ID
     result = add_song_to_playlist(youtube_service, user_input, playlist_id)
     await update.message.reply_text(result)
+
+async def get_song(update: Update, context: CallbackContext):
+    global youtube_service
+    playlist_id = YT_PLAYLIST_ID
+    try:
+        response = youtube_service.playlistItems().list(
+            part="snippet",
+            playlistId=playlist_id,
+            maxResults=50  # Adjust as needed
+        ).execute()
+
+        if "items" in response and response["items"]:
+            random_song = random.choice(response["items"])
+            title = random_song["snippet"]["title"]
+            video_id = random_song["snippet"]["resourceId"]["videoId"]
+            song_url = f"https://www.youtube.com/watch?v={video_id}"
+
+            await update.message.reply_text(f"Random Song: {title}\nURL: {song_url}")
+            logger.info(f"Recommended song: {title} URL: {song_url}")
+        else:
+            await update.message.reply_text("No songs found in the playlist.")
+    except Exception as e:
+        logger.error(f"Error fetching songs from playlist: {e}")
+        await update.message.reply_text("Failed to fetch song from playlist.")
 
 def extract_video_id(song_url):
     # This regex pattern is for standard YouTube video URLs
@@ -212,12 +237,14 @@ def main():
     fallacy_handler = MessageHandler(filters.Regex(re.compile(r'[\U0001F914]')) & filters.UpdateType.MESSAGES, detect_fallacy)
     news_handler = CommandHandler('news', handle_news_request)
     add_song_handler = CommandHandler('addsong', add_song)
+    get_song_handler = CommandHandler('getsong', get_song)
 
     # Register handlers with the application
     application.add_handler(start_handler)
     application.add_handler(fallacy_handler)
     application.add_handler(news_handler)
     application.add_handler(add_song_handler)
+    application.add_handler(get_song_handler)
 
     while True:
        try:
