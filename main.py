@@ -3,9 +3,13 @@ import re
 import logging
 import random
 import time
+import pickle
 from dotenv import load_dotenv
 from telegram import Update, InputMediaPhoto
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler, CallbackContext
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from newsapi import NewsApiClient
 from urllib.parse import parse_qs
 import openai
@@ -22,6 +26,7 @@ FALLACY_PROMPT = os.getenv('FALLACY_PROMPT')
 REPLY_TO_PRIVATE = os.getenv('REPLY_TO_PRIVATE', 'false').lower() == 'true'
 NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
 NEWSAPI_PAGESIZE = int(os.getenv('NEWSAPI_PAGESIZE', '50'))
+YT_PLAYLIST_ID = os.getenv('YT_PLAYLIST_ID')
 
 # Initialize NewsAPI
 newsapi = NewsApiClient(api_key=NEWSAPI_KEY)
@@ -63,10 +68,75 @@ def setup_openai_response(prompt_template, message_text):
         logger.error(f"OpenAI API error: {e}")
         return "An error occurred while processing the text."
 
+def add_song_to_playlist(youtube, song_url, playlist_id):
+    # Extract the video ID from the YouTube URL
+    video_id = extract_video_id(song_url)
+
+    try:
+        request = youtube.playlistItems().insert(
+            part="snippet",
+            body={
+                "snippet": {
+                    "playlistId": playlist_id,
+                    "resourceId": {
+                        "kind": "youtube#video",
+                        "videoId": video_id
+                    }
+                }
+            }
+        )
+        response = request.execute()
+        return f"Song added to playlist: {response['snippet']['title']}"
+    except HttpError as e:
+        print(f"Error while adding the song: {e}")
+        return "There was an error adding the song to the playlist."
+
+async def add_song(update: Update, context: CallbackContext):
+    youtube = get_authenticated_service()
+    if not youtube:
+        await update.message.reply_text("Authentication failed.")
+        return
+
+    user_input = ' '.join(context.args)
+    if not user_input:
+        await update.message.reply_text("Please send a YouTube song URL.")
+        return
+
+    playlist_id = YT_PLAYLIST_ID  # Replace with your playlist ID
+    result = add_song_to_playlist(youtube, user_input, playlist_id)
+    await update.message.reply_text(result)
+
+def extract_video_id(song_url):
+    # This regex pattern is for standard YouTube video URLs
+    regex_pattern = r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)'
+    match = re.search(regex_pattern, song_url)
+
+    if match:
+        return match.group(1)
+    else:
+        # Handle the case where the URL is not a standard YouTube URL
+        print("Invalid YouTube URL.")
+        return None
+
+def get_authenticated_service():
+    creds = None
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+
+    if creds and creds.valid:
+        return build('youtube', 'v3', credentials=creds)
+    else:
+        print("No valid token.pickle file was found. Please authenticate manually.")
+        return None
+
 async def start(update: Update, context):
-    welcome_text = ("Hi there! I can help you with logical fallacies and news.\n"
-                    "Reply to a message with 🤔 to analyze for logical fallacies.\n"
-                    "Use /news get a random article.")
+    welcome_text = ("Hi! I'm your Telegram assistant ready to help you with logical fallacies and the latest news.\n"
+                    "🧐 *Logical Fallacies*: Want to make sure your or others' arguments are free of logical fallacies?\n "
+                    "Simply reply to any message with the emoji 🤔 and I will analyze the text for possible logical fallacies.\n"
+                    "📰 *News*: Stay up to date with the latest news. Use the /news command to receive a random article\n"
+                    "command to receive a random article on general topics. You can also specify a topic to get more focused news,\n"
+                    "for example, /news volcano.")
     await send_reply(update, context, welcome_text)
 
 async def detect_fallacy(update: Update, context):
@@ -75,30 +145,6 @@ async def detect_fallacy(update: Update, context):
         logger.info(f"Analyzing for fallacies: {replied_message.text}")
         answer = setup_openai_response(FALLACY_PROMPT, replied_message.text)
         await send_reply(update, context, answer)
-
-def generate_newsapi_query(user_input):
-    logger.info(f"Generando consulta para OpenAI con entrada de usuario: {user_input}")
-
-    # Crear un prompt para OpenAI
-    prompt = f"Convertir la siguiente entrada de usuario en una consulta estructurada para la News API: '{user_input}'. Incluir parámetros como 'q', 'from', 'to', 'language', 'sortBy', etc."
-
-    # Consultar a OpenAI
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=100
-    )
-
-    # Interpretar la respuesta
-    structured_query = response.choices[0].text.strip()
-    logger.info(f"Consulta estructurada generada: {structured_query}")
-
-    # Convertir la cadena de consulta en un diccionario
-    query_dict = parse_qs(structured_query)
-    # Convertir los valores de lista en valores únicos
-    query_params = {k: v[0] for k, v in query_dict.items() if v}
-
-    return query_params
 
 async def send_reply(update: Update, context, text: str):
     if update.message.chat.type == 'private' and REPLY_TO_PRIVATE:
@@ -109,7 +155,6 @@ async def send_reply(update: Update, context, text: str):
         logger.info("Sent public reply.")
 
 def fetch_news(query_params):
-    # Asegúrate de que pageSize esté incluido en los parámetros
     query_params['page_size'] = NEWSAPI_PAGESIZE
     articles = newsapi.get_everything(**query_params)
     return articles
@@ -124,34 +169,33 @@ def format_multiple_articles_response(articles):
         url=article.get('url', '#'), title=article.get('title', 'No Title')) for article in articles]
     return '\n'.join(formatted_articles)
 
-def select_random_articles(articles, number=5):
-    return random.sample(articles, min(number, len(articles))) if articles else []
-
 async def handle_news_request(update: Update, context: CallbackContext):
     user_input = ' '.join(context.args)
+    formatted_response = "No news relevant to your request has been found."
 
     if not user_input:
-        # Búsqueda de noticias con un término genérico
         default_param = 'q'
         default_value = 'general'
-        logger.info(f"Realizando búsqueda de noticias con parámetro por defecto: {default_value}")
+        logger.info(f"Performing news search with default parameter: {default_value}")
         news_response = fetch_news({default_param: default_value, 'page_size': NEWSAPI_PAGESIZE})
-        if not news_response['articles']:
-            await update.message.reply_text("No se encontraron noticias.")
-            return
-        random_article = random.choice(news_response['articles'])
-        formatted_response = format_single_article_response(random_article)
-        logger.info(f"Artículo seleccionado al azar: {random_article['title']}")
+        if news_response['articles']:
+            random_article = random.choice(news_response['articles'])
+            formatted_response = format_single_article_response(random_article)
+            logger.info(f"Randomly selected item: {random_article['title']}")
     else:
-        query_params = generate_newsapi_query(user_input)
-        logger.info(f"Parámetros de consulta para News API: {query_params}")
-
+        query_params = {
+            'q': user_input,
+            'page_size': NEWSAPI_PAGESIZE
+        }
+        logger.info(f"Performing news search with user parameters: {query_params}")
         try:
             news_response = newsapi.get_everything(**query_params)
+            if news_response['articles']:
+                selected_articles = random.sample(news_response['articles'], min(5, len(news_response['articles'])))
+                formatted_response = format_multiple_articles_response(selected_articles)
+                logger.info(f"Selected articles: {[article['title'] for article in selected_articles]}")
         except Exception as e:
-            logger.error(f"Error al consultar la News API: {e}")
-            await update.message.reply_text("Hubo un error al procesar tu solicitud.")
-            return
+            logger.error(f"Error when querying the News API: {e}")
 
     await update.message.reply_text(formatted_response, parse_mode='HTML', disable_web_page_preview=True)
 
@@ -162,11 +206,13 @@ def main():
     start_handler = CommandHandler('start', start)
     fallacy_handler = MessageHandler(filters.Regex(re.compile(r'[\U0001F914]')) & filters.UpdateType.MESSAGES, detect_fallacy)
     news_handler = CommandHandler('news', handle_news_request)
+    add_song_handler = CommandHandler('addsong', add_song)
 
     # Register handlers with the application
     application.add_handler(start_handler)
     application.add_handler(fallacy_handler)
     application.add_handler(news_handler)
+    application.add_handler(add_song_handler)
 
     while True:
        try:
