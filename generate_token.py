@@ -10,7 +10,7 @@ def generate_token():
     scopes = ['https://www.googleapis.com/auth/youtube']
 
     flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, scopes)
-    creds = flow.run_local_server(port=8080)
+    creds = flow.run_local_server(port=8080, prompt='consent')
 
     with open(token_file, 'wb') as token:
         pickle.dump(creds, token)

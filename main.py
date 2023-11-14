@@ -117,22 +117,61 @@ async def get_song(update: Update, context: CallbackContext):
     playlist_id = YT_PLAYLIST_ID
 
     try:
+        # Get total number of songs in the playlist
+        playlist_details = youtube.playlists().list(
+            part="contentDetails",
+            id=playlist_id
+        ).execute()
+
+        total_songs = playlist_details["items"][0]["contentDetails"]["itemCount"]
+
+        # Randomly select a song index
+        random_index = random.randint(1, total_songs)
+
+        # Calculate the page token
+        page_token = None
+        items_per_page = 50  # Adjust as needed
+        current_page = 0
+
+        if random_index > items_per_page:
+            target_page = (random_index // items_per_page)
+
+            while current_page < target_page:
+                response = youtube.playlistItems().list(
+                    part="snippet",
+                    playlistId=playlist_id,
+                    maxResults=items_per_page,
+                    pageToken=page_token
+                ).execute()
+
+                page_token = response.get("nextPageToken")
+                current_page += 1
+
+                # Break the loop if there's no more pages but we haven't reached the target page
+                if not page_token:
+                    break
+
+        # Now page_token is set to the page where the random song is located
+        # Retrieve the specific song
         response = youtube.playlistItems().list(
             part="snippet",
             playlistId=playlist_id,
-            maxResults=50  # Adjust as needed
+            maxResults=items_per_page,
+            pageToken=page_token  # Use the calculated page token
         ).execute()
 
-        if "items" in response and response["items"]:
-            random_song = random.choice(response["items"])
-            title = random_song["snippet"]["title"]
-            video_id = random_song["snippet"]["resourceId"]["videoId"]
-            song_url = f"https://www.youtube.com/watch?v={video_id}"
+        # Calculate the index of the song in the current page
+        song_index_in_page = random_index % items_per_page - 1
+        if song_index_in_page < 0:
+            song_index_in_page += items_per_page
 
-            await update.message.reply_text(f"Magic Song: {title}\nURL: {song_url}")
-            logger.info(f"Recommended song: {title} URL: {song_url}")
-        else:
-            await update.message.reply_text("No songs found in the playlist.")
+        selected_song = response["items"][song_index_in_page]
+        title = selected_song["snippet"]["title"]
+        video_id = selected_song["snippet"]["resourceId"]["videoId"]
+        song_url = f"https://www.youtube.com/watch?v={video_id}"
+
+        await update.message.reply_text(f"🎶 Here's a tune I picked just for you!: {title}\n🔗 Tap to listen: {song_url}")
+        logger.info(f"Recommended song: {title} URL: {song_url}")
     except HttpError as e:
         logger.error(f"Error fetching songs from playlist: {e}")
         await update.message.reply_text("Failed to fetch song from playlist.")
