@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler, CallbackContext
 from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 from newsapi import NewsApiClient
 import openai
@@ -25,8 +26,6 @@ REPLY_TO_PRIVATE = os.getenv('REPLY_TO_PRIVATE', 'false').lower() == 'true'
 NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
 NEWSAPI_PAGESIZE = int(os.getenv('NEWSAPI_PAGESIZE', '50'))
 YT_PLAYLIST_ID = os.getenv('YT_PLAYLIST_ID')
-global youtube_service
-youtube_service = None
 
 # Initialize NewsAPI
 newsapi = NewsApiClient(api_key=NEWSAPI_KEY)
@@ -68,10 +67,14 @@ def setup_openai_response(prompt_template, message_text):
         logger.error(f"OpenAI API error: {e}")
         return "An error occurred while processing the text."
 
-def add_song_to_playlist(youtube, song_url, playlist_id):
-    global youtube_service
+def add_song_to_playlist(song_url, playlist_id):
+    # Authenticate and get YouTube service
+    youtube = get_authenticated_service()
+
     # Extract the video ID from the YouTube URL
     video_id = extract_video_id(song_url)
+    if not video_id:
+        return "Invalid YouTube URL."
 
     try:
         request = youtube.playlistItems().insert(
@@ -94,8 +97,8 @@ def add_song_to_playlist(youtube, song_url, playlist_id):
         return "Failed to add song to playlist."
 
 async def add_song(update: Update, context: CallbackContext):
-    global youtube_service
-    if not youtube_service:
+    youtube = get_authenticated_service()
+    if not youtube:
         await update.message.reply_text("YouTube service is not initialized.")
         return
 
@@ -105,14 +108,16 @@ async def add_song(update: Update, context: CallbackContext):
         return
 
     playlist_id = YT_PLAYLIST_ID
-    result = add_song_to_playlist(youtube_service, user_input, playlist_id)
+    result = add_song_to_playlist(user_input, playlist_id)
     await update.message.reply_text(result)
 
 async def get_song(update: Update, context: CallbackContext):
-    global youtube_service
+    # Authenticate and get YouTube service
+    youtube = get_authenticated_service()
     playlist_id = YT_PLAYLIST_ID
+
     try:
-        response = youtube_service.playlistItems().list(
+        response = youtube.playlistItems().list(
             part="snippet",
             playlistId=playlist_id,
             maxResults=50  # Adjust as needed
@@ -128,13 +133,16 @@ async def get_song(update: Update, context: CallbackContext):
             logger.info(f"Recommended song: {title} URL: {song_url}")
         else:
             await update.message.reply_text("No songs found in the playlist.")
-    except Exception as e:
+    except HttpError as e:
         logger.error(f"Error fetching songs from playlist: {e}")
         await update.message.reply_text("Failed to fetch song from playlist.")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        await update.message.reply_text("An error occurred while processing your request.")
 
 def extract_video_id(song_url):
     # This regex pattern is for standard YouTube video URLs
-    regex_pattern = r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)'
+    regex_pattern = r'(?:youtube\.com/watch\?v=|youtu\.be/|music\.youtube\.com/watch\?v=)([a-zA-Z0-9_-]+)'
     match = re.search(regex_pattern, song_url)
 
     if match:
@@ -151,6 +159,12 @@ def get_authenticated_service():
     if os.path.exists(token_file):
         with open(token_file, 'rb') as token:
             creds = pickle.load(token)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            with open(token_file, 'wb') as token:
+                pickle.dump(creds, token)
 
     return build('youtube', 'v3', credentials=creds)
 
@@ -225,12 +239,6 @@ async def handle_news_request(update: Update, context: CallbackContext):
 
 def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-    global youtube_service
-    youtube_service = get_authenticated_service()
-    if not youtube_service:
-        logger.error("Failed to authenticate with YouTube. Exiting.")
-        return
 
     # Handlers
     start_handler = CommandHandler('start', start)
