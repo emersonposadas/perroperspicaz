@@ -129,7 +129,7 @@ async def get_song(update: Update, context: CallbackContext):
             video_id = random_song["snippet"]["resourceId"]["videoId"]
             song_url = f"https://www.youtube.com/watch?v={video_id}"
 
-            await update.message.reply_text(f"Random Song: {title}\nURL: {song_url}")
+            await update.message.reply_text(f"Magic Song: {title}\nURL: {song_url}")
             logger.info(f"Recommended song: {title} URL: {song_url}")
         else:
             await update.message.reply_text("No songs found in the playlist.")
