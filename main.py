@@ -105,12 +105,10 @@ def add_song_to_playlist(song_url, playlist_id):
         return "Failed to add song to playlist."
 
 async def add_song(update: Update, context: CallbackContext):
-    youtube = get_authenticated_service()
-    if not youtube:
-        await update.message.reply_text("YouTube service is not initialized.")
-        return
-
+    user_id = update.message.from_user.id
+    YT_AWAITING_LINK[user_id] = True
     await send_youtube_link_button(update, context)
+    logger.info("Awaiting YouTube link")
 
 async def send_youtube_link_button(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("Send YouTube Link", callback_data='send_yt_link')]]
@@ -133,11 +131,14 @@ async def receive_youtube_link(update: Update, context: CallbackContext):
 
     if YT_AWAITING_LINK.get(user_id):
         youtube_link = update.message.text
-        logger.info(f"Received YouTube link: {youtube_link}")
+        logger.info("Received YouTube link")
         result = add_song_to_playlist(youtube_link, YT_PLAYLIST_ID)
         await update.message.reply_text(result)
         YT_AWAITING_LINK[user_id] = False  # Reset the flag
-        logger.info(f"Processed YouTube link from user {user_id}")
+        logger.info(f"Processed YouTube link {youtube_link}")
+    else:
+        # Ignore other messages
+        pass
 
 async def get_song(update: Update, context: CallbackContext):
     # Authenticate and get YouTube service
@@ -312,6 +313,7 @@ def main():
     fallacy_handler = MessageHandler(filters.Regex(re.compile(r'[\U0001F914]')) & filters.UpdateType.MESSAGES, detect_fallacy)
     news_handler = CommandHandler('news', handle_news_request)
     get_song_handler = CommandHandler('getsong', get_song)
+    add_song_handler = CommandHandler('addsong', add_song)
     callback_query_handler = CallbackQueryHandler(handle_callback_query)
     youtube_link_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, receive_youtube_link)
 
@@ -320,6 +322,7 @@ def main():
     application.add_handler(fallacy_handler)
     application.add_handler(news_handler)
     application.add_handler(get_song_handler)
+    application.add_handler(add_song_handler)
     application.add_handler(callback_query_handler)
     application.add_handler(youtube_link_handler)
 
