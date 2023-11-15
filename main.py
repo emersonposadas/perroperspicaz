@@ -505,10 +505,10 @@ async def handle_news_request(update: Update, context: CallbackContext):
                 )
                 formatted_response = format_multiple_articles_response(selected_articles)
                 logger.info(
-                    f"Selected articles: {[article['title'] for article in selected_articles]}"
+                    "Selected articles: %s, [article['title'] for article in selected_articles]"
                 )
         except Exception as e:
-            logger.error(f"Error when querying the News API: {e}")
+            logger.error("Error when querying the News API: %s", e)
 
     await update.message.reply_text(
         formatted_response,
@@ -517,6 +517,28 @@ async def handle_news_request(update: Update, context: CallbackContext):
     )
 
 def main():
+    """
+    Main function for running the Telegram bot application.
+
+    This function sets up the Telegram bot application, registers command and message handlers, 
+    and continuously runs the bot to interact with users. It handles network errors gracefully 
+    by retrying after a brief delay and exits the loop for unexpected errors.
+
+    The following handlers are registered:
+    - 'start_handler' for handling the "/start" command.
+    - 'fallacy_handler' for detecting messages containing the "🤔" emoji.
+    - 'news_handler' for handling the "/news" command and news-related requests.
+    - 'get_song_handler' for handling the "/getsong" command and recommending songs.
+    - 'add_song_handler' for handling the "/addsong" command and adding songs to a playlist.
+    - 'youtube_link_handler' for handling text messages that are not commands.
+
+    Args:
+        None: This function takes no arguments.
+
+    Returns:
+        None: This function continuously runs the Telegram bot application and does not
+        return a value.
+    """
     application = ApplicationBuilder().token(PP_TELEGRAM_TOKEN).build()
 
     # Handlers
@@ -542,10 +564,10 @@ def main():
         try:
             application.run_polling()
         except telegram.error.NetworkError as e:
-            logger.error(f"Network error encountered: {e}")
+            logger.error("Network error encountered: %s", e)
             time.sleep(5)  # Wait for 5 seconds before retrying
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            logger.error("Unexpected error: %s", e)
             break  # Exit the loop for unexpected errors
 
 if __name__ == '__main__':
