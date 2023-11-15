@@ -5,7 +5,7 @@ import random
 import time
 import pickle
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import (
     ApplicationBuilder, 
     MessageHandler, 
@@ -109,22 +109,6 @@ async def add_song(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     PP_YT_AWAITING_LINK[user_id] = True  # Set the flag to True for this user
     await update.message.reply_text("Please send the YouTube link.")
-
-async def send_youtube_link_button(update: Update, context: CallbackContext):
-    keyboard = [[InlineKeyboardButton("Send YouTube Link", callback_data='send_yt_link')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('Please click the button to send a YouTube link:', reply_markup=reply_markup)
-    logger.info("Sent YouTube link button.")
-
-async def handle_callback_query(update: Update, context: CallbackContext):
-    query = update.callback_query
-    await query.answer()
-
-    if query.data == 'send_yt_link':
-        user_id = query.from_user.id
-        PP_YT_AWAITING_LINK[user_id] = True
-        await query.edit_message_text(text="Please send the YouTube link now.")
-        logger.info("Prompted for YouTube link.")
 
 async def receive_youtube_link(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
@@ -311,7 +295,6 @@ def main():
     news_handler = CommandHandler('news', handle_news_request)
     get_song_handler = CommandHandler('getsong', get_song)
     add_song_handler = CommandHandler('addsong', add_song)
-    callback_query_handler = CallbackQueryHandler(handle_callback_query)
     youtube_link_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, receive_youtube_link)
 
     # Register handlers with the application
@@ -320,7 +303,6 @@ def main():
     application.add_handler(news_handler)
     application.add_handler(get_song_handler)
     application.add_handler(add_song_handler)
-    application.add_handler(callback_query_handler)
     application.add_handler(youtube_link_handler)
 
     while True:
