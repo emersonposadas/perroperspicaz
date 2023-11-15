@@ -106,10 +106,9 @@ def add_song_to_playlist(song_url, playlist_id):
         return "Failed to add song to playlist."
 
 async def add_song(update: Update, context: CallbackContext):
-    user_id = update.message.from_user.id
-    PP_YT_AWAITING_LINK[user_id] = True
-    await send_youtube_link_button(update, context)
-    logger.info("Awaiting YouTube link")
+    user_id = update.effective_user.id
+    PP_YT_AWAITING_LINK[user_id] = True  # Set the flag to True for this user
+    await update.message.reply_text("Please send the YouTube link.")
 
 async def send_youtube_link_button(update: Update, context: CallbackContext):
     keyboard = [[InlineKeyboardButton("Send YouTube Link", callback_data='send_yt_link')]]
@@ -132,11 +131,13 @@ async def receive_youtube_link(update: Update, context: CallbackContext):
 
     if PP_YT_AWAITING_LINK.get(user_id):
         youtube_link = update.message.text
-        logger.info("Received YouTube link")
+        logger.info(f"Received YouTube link {youtube_link}")
+
         result = add_song_to_playlist(youtube_link, PP_YT_PLAYLIST_ID)
         await update.message.reply_text(result)
+
         PP_YT_AWAITING_LINK[user_id] = False  # Reset the flag
-        logger.info(f"Processed YouTube link {youtube_link}")
+        logger.info(f"Processed YouTube link: {youtube_link}")
     else:
         # Ignore other messages
         pass
