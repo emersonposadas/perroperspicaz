@@ -22,24 +22,25 @@ import openai
 
 # Load environment variables from .env file
 load_dotenv()
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-OPENAI_TOKEN = os.getenv('OPENAI_TOKEN')
-LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
-ENABLE_FILE_LOGGING = os.getenv('ENABLE_FILE_LOGGING', 'false').lower() == 'true'
-LOG_FILE_PATH = os.getenv('LOG_FILE_PATH', 'bot.log')
-OPENAI_ENGINE = os.getenv('OPENAI_ENGINE', 'gpt-4')
-FALLACY_PROMPT = os.getenv('FALLACY_PROMPT')
-REPLY_TO_PRIVATE = os.getenv('REPLY_TO_PRIVATE', 'false').lower() == 'true'
-NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
-NEWSAPI_PAGESIZE = int(os.getenv('NEWSAPI_PAGESIZE', '50'))
-YT_PLAYLIST_ID = os.getenv('YT_PLAYLIST_ID')
-YT_AWAITING_LINK = {}
+PP_TELEGRAM_TOKEN = os.getenv('PP_TELEGRAM_TOKEN')
+PP_OPENAI_TOKEN = os.getenv('PP_OPENAI_TOKEN')
+PP_LOG_LEVEL = os.getenv('PP_LOG_LEVEL', 'INFO').upper()
+PP_ENABLE_FILE_LOGGING = os.getenv('PP_ENABLE_FILE_LOGGING', 'false').lower() == 'true'
+PP_LOG_FILE_PATH = os.getenv('PP_LOG_FILE_PATH', 'bot.log')
+PP_OPENAI_ENGINE = os.getenv('PP_OPENAI_ENGINE', 'gpt-4')
+PP_FALLACY_PROMPT = os.getenv('PP_FALLACY_PROMPT')
+PP_REPLY_TO_PRIVATE = os.getenv('PP_REPLY_TO_PRIVATE', 'false').lower() == 'true'
+PP_WELCOME_TEXT = os.getenv('PP_WELCOME_TEXT')
+PP_NEWSAPI_KEY = os.getenv('PP_NEWSAPI_KEY')
+PP_NEWSAPI_PAGESIZE = int(os.getenv('PP_NEWSAPI_PAGESIZE', '50'))
+PP_YT_PLAYLIST_ID = os.getenv('PP_YT_PLAYLIST_ID')
+PP_YT_AWAITING_LINK = {}
 
 # Initialize NewsAPI
-newsapi = NewsApiClient(api_key=NEWSAPI_KEY)
+newsapi = NewsApiClient(api_key=PP_NEWSAPI_KEY)
 
 # OpenAI API configuration
-openai.api_key = OPENAI_TOKEN
+openai.api_key = PP_OPENAI_TOKEN
 
 # Apply logging filter and configuration
 class NoHTTPRequestFilter(logging.Filter):
@@ -55,8 +56,8 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     handlers=[logging.StreamHandler()])
 
-if ENABLE_FILE_LOGGING:
-    file_handler = logging.FileHandler(LOG_FILE_PATH)
+if PP_ENABLE_FILE_LOGGING:
+    file_handler = logging.FileHandler(PP_LOG_FILE_PATH)
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logging.getLogger().addHandler(file_handler)
 
@@ -65,7 +66,7 @@ if ENABLE_FILE_LOGGING:
 def setup_openai_response(prompt_template, message_text):
     try:
         response = openai.Completion.create(
-            engine=OPENAI_ENGINE,
+            engine=PP_OPENAI_ENGINE,
             prompt=f"{prompt_template}\n\n{message_text}\n\n",
             max_tokens=150,
             temperature=0.5
@@ -106,7 +107,7 @@ def add_song_to_playlist(song_url, playlist_id):
 
 async def add_song(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
-    YT_AWAITING_LINK[user_id] = True
+    PP_YT_AWAITING_LINK[user_id] = True
     await send_youtube_link_button(update, context)
     logger.info("Awaiting YouTube link")
 
@@ -122,19 +123,19 @@ async def handle_callback_query(update: Update, context: CallbackContext):
 
     if query.data == 'send_yt_link':
         user_id = query.from_user.id
-        YT_AWAITING_LINK[user_id] = True
+        PP_YT_AWAITING_LINK[user_id] = True
         await query.edit_message_text(text="Please send the YouTube link now.")
         logger.info("Prompted for YouTube link.")
 
 async def receive_youtube_link(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
 
-    if YT_AWAITING_LINK.get(user_id):
+    if PP_YT_AWAITING_LINK.get(user_id):
         youtube_link = update.message.text
         logger.info("Received YouTube link")
-        result = add_song_to_playlist(youtube_link, YT_PLAYLIST_ID)
+        result = add_song_to_playlist(youtube_link, PP_YT_PLAYLIST_ID)
         await update.message.reply_text(result)
-        YT_AWAITING_LINK[user_id] = False  # Reset the flag
+        PP_YT_AWAITING_LINK[user_id] = False  # Reset the flag
         logger.info(f"Processed YouTube link {youtube_link}")
     else:
         # Ignore other messages
@@ -143,7 +144,7 @@ async def receive_youtube_link(update: Update, context: CallbackContext):
 async def get_song(update: Update, context: CallbackContext):
     # Authenticate and get YouTube service
     youtube = get_authenticated_service()
-    playlist_id = YT_PLAYLIST_ID
+    playlist_id = PP_YT_PLAYLIST_ID
 
     try:
         # Get total number of songs in the playlist
@@ -237,23 +238,18 @@ def get_authenticated_service():
     return build('youtube', 'v3', credentials=creds)
 
 async def start(update: Update, context):
-    welcome_text = ("Hi! I'm your Telegram assistant ready to help you with logical fallacies and the latest news.\n"
-                    "🧐 *Logical Fallacies*: Want to make sure your or others' arguments are free of logical fallacies?\n "
-                    "Simply reply to any message with the emoji 🤔 and I will analyze the text for possible logical fallacies.\n"
-                    "📰 *News*: Stay up to date with the latest news. Use the /news command to receive a random article\n"
-                    "command to receive a random article on general topics. You can also specify a topic to get more focused news,\n"
-                    "for example, /news volcano.")
+    welcome_text = PP_WELCOME_TEXT
     await send_reply(update, context, welcome_text)
 
 async def detect_fallacy(update: Update, context):
     replied_message = update.message.reply_to_message
     if replied_message:
         logger.info(f"Analyzing for fallacies: {replied_message.text}")
-        answer = setup_openai_response(FALLACY_PROMPT, replied_message.text)
+        answer = setup_openai_response(PP_FALLACY_PROMPT, replied_message.text)
         await send_reply(update, context, answer)
 
 async def send_reply(update: Update, context, text: str):
-    if update.message.chat.type == 'private' and REPLY_TO_PRIVATE:
+    if update.message.chat.type == 'private' and PP_REPLY_TO_PRIVATE:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
         logger.info("Sent private reply.")
     else:
@@ -261,7 +257,7 @@ async def send_reply(update: Update, context, text: str):
         logger.info("Sent public reply.")
 
 def fetch_news(query_params):
-    query_params['page_size'] = NEWSAPI_PAGESIZE
+    query_params['page_size'] = PP_NEWSAPI_PAGESIZE
     articles = newsapi.get_everything(**query_params)
     return articles
 
@@ -283,7 +279,7 @@ async def handle_news_request(update: Update, context: CallbackContext):
         default_param = 'q'
         default_value = 'general'
         logger.info(f"Performing news search with default parameter: {default_value}")
-        news_response = fetch_news({default_param: default_value, 'page_size': NEWSAPI_PAGESIZE})
+        news_response = fetch_news({default_param: default_value, 'page_size': PP_NEWSAPI_PAGESIZE})
         if news_response['articles']:
             random_article = random.choice(news_response['articles'])
             formatted_response = format_single_article_response(random_article)
@@ -291,7 +287,7 @@ async def handle_news_request(update: Update, context: CallbackContext):
     else:
         query_params = {
             'q': user_input,
-            'page_size': NEWSAPI_PAGESIZE
+            'page_size': PP_NEWSAPI_PAGESIZE
         }
         logger.info(f"Performing news search with user parameters: {query_params}")
         try:
@@ -306,7 +302,7 @@ async def handle_news_request(update: Update, context: CallbackContext):
     await update.message.reply_text(formatted_response, parse_mode='HTML', disable_web_page_preview=True)
 
 def main():
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    application = ApplicationBuilder().token(PP_TELEGRAM_TOKEN).build()
 
     # Handlers
     start_handler = CommandHandler('start', start)
