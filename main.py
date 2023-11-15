@@ -5,8 +5,15 @@ import random
 import time
 import pickle
 from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler, CallbackContext
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder, 
+    MessageHandler, 
+    filters, 
+    CommandHandler, 
+    CallbackContext, 
+    CallbackQueryHandler
+)
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
@@ -26,6 +33,7 @@ REPLY_TO_PRIVATE = os.getenv('REPLY_TO_PRIVATE', 'false').lower() == 'true'
 NEWSAPI_KEY = os.getenv('NEWSAPI_KEY')
 NEWSAPI_PAGESIZE = int(os.getenv('NEWSAPI_PAGESIZE', '50'))
 YT_PLAYLIST_ID = os.getenv('YT_PLAYLIST_ID')
+YT_AWAITING_LINK = {}
 
 # Initialize NewsAPI
 newsapi = NewsApiClient(api_key=NEWSAPI_KEY)
@@ -102,14 +110,34 @@ async def add_song(update: Update, context: CallbackContext):
         await update.message.reply_text("YouTube service is not initialized.")
         return
 
-    user_input = ' '.join(context.args)
-    if not user_input:
-        await update.message.reply_text("Please send a YouTube song URL.")
-        return
+    await send_youtube_link_button(update, context)
 
-    playlist_id = YT_PLAYLIST_ID
-    result = add_song_to_playlist(user_input, playlist_id)
-    await update.message.reply_text(result)
+async def send_youtube_link_button(update: Update, context: CallbackContext):
+    keyboard = [[InlineKeyboardButton("Send YouTube Link", callback_data='send_yt_link')]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text('Please click the button to send a YouTube link:', reply_markup=reply_markup)
+    logger.info("Sent YouTube link button.")
+
+async def handle_callback_query(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'send_yt_link':
+        user_id = query.from_user.id
+        YT_AWAITING_LINK[user_id] = True
+        await query.edit_message_text(text="Please send the YouTube link now.")
+        logger.info("Prompted for YouTube link.")
+
+async def receive_youtube_link(update: Update, context: CallbackContext):
+    user_id = update.message.from_user.id
+
+    if YT_AWAITING_LINK.get(user_id):
+        youtube_link = update.message.text
+        logger.info(f"Received YouTube link: {youtube_link}")
+        result = add_song_to_playlist(youtube_link, YT_PLAYLIST_ID)
+        await update.message.reply_text(result)
+        YT_AWAITING_LINK[user_id] = False  # Reset the flag
+        logger.info(f"Processed YouTube link from user {user_id}")
 
 async def get_song(update: Update, context: CallbackContext):
     # Authenticate and get YouTube service
@@ -283,15 +311,17 @@ def main():
     start_handler = CommandHandler('start', start)
     fallacy_handler = MessageHandler(filters.Regex(re.compile(r'[\U0001F914]')) & filters.UpdateType.MESSAGES, detect_fallacy)
     news_handler = CommandHandler('news', handle_news_request)
-    add_song_handler = CommandHandler('addsong', add_song)
     get_song_handler = CommandHandler('getsong', get_song)
+    callback_query_handler = CallbackQueryHandler(handle_callback_query)
+    youtube_link_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, receive_youtube_link)
 
     # Register handlers with the application
     application.add_handler(start_handler)
     application.add_handler(fallacy_handler)
     application.add_handler(news_handler)
-    application.add_handler(add_song_handler)
     application.add_handler(get_song_handler)
+    application.add_handler(callback_query_handler)
+    application.add_handler(youtube_link_handler)
 
     while True:
        try:
