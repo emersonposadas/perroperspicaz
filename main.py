@@ -18,13 +18,13 @@ from telegram.ext import (
     MessageHandler,
     filters,
     CommandHandler,
-    CallbackContext,
-    CallbackQueryHandler
+    CallbackContext
 )
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 from newsapi import NewsApiClient
+from fx_handlers import fx_command
 import openai
 
 # Load environment variables from .env file
@@ -551,6 +551,7 @@ def main():
     get_song_handler = CommandHandler('getsong', get_song)
     add_song_handler = CommandHandler('addsong', add_song)
     youtube_link_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, receive_youtube_link)
+    fx_handler = CommandHandler('fx', fx_command)
 
     # Register handlers with the application
     application.add_handler(start_handler)
@@ -559,6 +560,7 @@ def main():
     application.add_handler(get_song_handler)
     application.add_handler(add_song_handler)
     application.add_handler(youtube_link_handler)
+    application.add_handler(fx_handler)
 
     while True:
         try:
