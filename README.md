@@ -14,7 +14,7 @@ To install and run PerroPerspicaz, follow these steps:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/perroperspicaz/perroperspicaz.git
+   git clone https://github.com/emersonposadas/perroperspicaz.git
    ```
 2. Install required dependencies:
    ```bash
