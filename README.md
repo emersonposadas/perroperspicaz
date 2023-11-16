@@ -1,69 +1,54 @@
-# PerroPerspicaz Telegram Bot
+# PerroPerspicaz Bot
 
-PerroPerspicaz is a sophisticated Telegram bot designed to analyze text for logical fallacies using the OpenAI API. It offers a convenient way for users to get quick feedback on their text snippets directly within the Telegram chat interface.
+## Introduction
+PerroPerspicaz is a versatile Telegram bot integrating multiple features including news retrieval, YouTube playlist management, and interaction with OpenAI's GPT model for text analysis and response generation.
 
 ## Features
-
-- Respond to messages with a thinking emoji.
-- Analyze text for logical fallacies.
-- Quote the source message that contains the thinking emoji.
+- **News Retrieval**: Fetches news articles based on user queries using the NewsAPI.
+- **YouTube Playlist Management**: Adds songs to a specified YouTube playlist and recommends random songs from the playlist.
+- **OpenAI Integration**: Utilizes OpenAI's GPT model to generate responses and analyze texts for logical fallacies.
+- **Telegram Bot Interaction**: Handles user commands and messages within Telegram.
 
 ## Installation
+To install and run PerroPerspicaz, follow these steps:
 
-Before you begin, make sure you have Python 3.11 installed on your system. If you do not have it installed, download and install it from [Python's official website](https://www.python.org/downloads/release/python-3110/).
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/perroperspicaz/perroperspicaz.git
+   ```
+2. Install required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-To set up your instance of the PerroPerspicaz bot, follow these steps:
-
-1. **Clone the repository**:
-
-    ```bash
-    git clone https://github.com/emersonposadas/perroperspicaz.git
-    cd perroperspicaz
-    ```
-
-2. **Set up a virtual environment** (optional but recommended):
-
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate.bat`
-    ```
-
-3. **Install the dependencies**:
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-## Dependencies
-
-Ensure you have the following dependencies installed with the exact versions as listed in the `requirements.txt` file:
-
-```plaintext
-aiofiles==23.1.0
-aiogram==3.1.1
-aiohttp==3.8.6
-... (rest of the dependencies)
-python-telegram-bot==20.6
-```
+## Configuration
+Set up the required environment variables in a `.env` file:
+- `PP_TELEGRAM_TOKEN`: Your Telegram Bot Token.
+- `PP_OPENAI_TOKEN`: Your OpenAI API key.
+- `PP_NEWSAPI_KEY`: Your NewsAPI key.
+- Other optional configurations as needed.
 
 ## Usage
+1. Start the bot using:
+   ```python
+   python main.py
+   ```
+2. Interact with the bot on Telegram using supported commands like `/news`, `/addsong`, `/getsong`, etc.
 
-After installation, the bot should be running and ready to interact with users. To use the bot's functionality, send a message that includes a thinking emoji, and the bot will process the text looking for logical fallacies.
-
-## Support
-
-For support, questions, or feedback, please open an issue in the [GitHub repository issue tracker](https://github.com/emersonposadas/perroperspicaz/issues)
+## Dependencies
+- Python 3.8+
+- Libraries: `python-telegram-bot`, `google-api-python-client`, `newsapi-python`, `openai`, etc.
 
 ## Contributing
+Contributions to the PerroPerspicaz bot are welcome. 
 
-Contributions are what make the open-source community such a fantastic place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+## License
 
-If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement".
+This project is dual-licensed:
 
-Don't forget to give the project a star! Thanks again!
+- **Open Source License**: The software is available under the MIT License for open-source use. Under this license, you are free to use, modify, and distribute the software, provided that credit is given to the original author.
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+- **Commercial License**: For commercial use, a separate commercial license is available. This license is tailored for businesses and commercial entities who wish to utilize the software in a commercial capacity. It includes additional features and support not available in the open-source version.
+
+For more information, please contact the author.
+
