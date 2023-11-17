@@ -45,7 +45,7 @@ def fetch_bing_news(query):
         return []
 
 async def summarize_with_gpt4(articles, send_reply_func):
-    # Combine the titles and descriptions of all articles into one text
+    # Combine the titles, descriptions, and URLs of all articles into one text
     combined_text = ' '.join([f"{article['name']}. {article['description']}" for article in articles])
 
     # Construct the prompt for summarization
@@ -64,8 +64,11 @@ async def summarize_with_gpt4(articles, send_reply_func):
         # Log the summary generation
         logger.info("Generated summary using %s.", PP_OPENAI_ENGINE)
 
-        # Send the summary using the provided callback function
-        await send_reply_func(summary)
+        # Format the message with summary and links
+        message_with_links = summary + "\n\nSources:\n" + '\n'.join([f"{idx + 1}. {article['url']}" for idx, article in enumerate(articles)])
+
+        # Send the formatted message using the provided callback function
+        await send_reply_func(message_with_links)
     except Exception as e:
         # Log any errors
         logger.error(f"Error generating summary: {e}")
