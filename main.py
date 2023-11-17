@@ -23,7 +23,7 @@ from telegram.ext import (
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
-from newsapi import NewsApiClient
+from news_handler import fetch_bing_news, summarize_with_gpt4
 from fx_handlers import fx_command
 import openai
 
@@ -404,117 +404,6 @@ async def send_reply(update: Update, context, text: str):
     else:
         await update.message.reply_text(text)
         logger.info("Sent public reply.")
-
-def fetch_news(query_params):
-    """
-    Fetches news articles based on the provided query parameters.
-
-    This function modifies the query parameters to include a predefined page size and then
-    retrieves news articles using the NewsAPI client. The articles are fetched according
-    to the specified query parameters.
-
-    Args:
-        query_params (dict): A dictionary of parameters for the news query.
-
-    Returns:
-        dict: A dictionary containing the fetched news articles.
-    """
-    query_params['page_size'] = PP_NEWSAPI_PAGESIZE
-    articles = newsapi.get_everything(**query_params)
-    return articles
-
-def format_single_article_response(article):
-    """
-    Formats a single news article into a clickable HTML link.
-
-    This function takes a news article's details and formats them into an HTML anchor tag,
-    making the article's title clickable and directing to the article's URL.
-
-    Args:
-        article (dict): A dictionary containing the details of a news article, including
-        its title and URL.
-
-    Returns:
-        str: A formatted HTML string containing the article's title as a clickable link.
-    """
-    title = article.get('title', 'No Title')
-    url = article.get('url', '#')
-    return f"<a href='{url}'>{title}</a>"
-
-def format_multiple_articles_response(articles):
-    """
-    Formats multiple news articles into a list of clickable HTML links.
-
-    This function iterates over a list of news articles, formatting each into an HTML anchor tag.
-    Each article's title is made clickable, directing to the article's URL. The formatted
-    articles are then combined into a single string, separated by new lines.
-
-    Args:
-        articles (list): A list of dictionaries, each containing the details of a news article.
-
-    Returns:
-        str: A formatted string containing a list of HTML links to the articles.
-    """
-    formatted_articles = [
-        f"• <a href='{article.get('url', '#')}'>{article.get('title', 'No Title')}</a>"
-        for article in articles
-    ]
-    return '\n'.join(formatted_articles)
-
-async def handle_news_request(update: Update, context: CallbackContext):
-    """
-    Asynchronously handles a user's news request and sends back relevant news articles.
-
-    This function processes user input from a Telegram message to search for news articles. 
-    If no specific input is provided, it searches for general news. It fetches news articles 
-    using the News API, formats them into a user-friendly message, and sends this message back 
-    to the user in the chat. The function handles any errors during the News API query and logs 
-    relevant information.
-
-    Args:
-        update (Update): An object representing an incoming update.
-        context (CallbackContext): Provides context about the update such as user data.
-
-    Returns:
-        None: The function sends a response message to the user but does not return any value.
-    """
-    user_input = ' '.join(context.args)
-    formatted_response = "No news relevant to your request has been found."
-
-    if not user_input:
-        default_param = 'q'
-        default_value = 'general'
-        logger.info("Performing news search with default parameter: %s", default_value)
-        news_response = fetch_news({default_param: default_value, 'page_size': PP_NEWSAPI_PAGESIZE})
-        if news_response['articles']:
-            random_article = random.choice(news_response['articles'])
-            formatted_response = format_single_article_response(random_article)
-            logger.info("Randomly selected item: %s", random_article['title'])
-    else:
-        query_params = {
-            'q': user_input,
-            'page_size': PP_NEWSAPI_PAGESIZE
-        }
-        logger.info("Performing news search with user parameters: %s", query_params)
-        try:
-            news_response = newsapi.get_everything(**query_params)
-            if news_response['articles']:
-                selected_articles = random.sample(
-                    news_response['articles'],
-                    min(5, len(news_response['articles']))
-                )
-                formatted_response = format_multiple_articles_response(selected_articles)
-                logger.info(
-                    "Selected articles: %s, [article['title'] for article in selected_articles]"
-                )
-        except Exception as e:
-            logger.error("Error when querying the News API: %s", e)
-
-    await update.message.reply_text(
-        formatted_response,
-        parse_mode='HTML',
-        disable_web_page_preview=True
-    )
 
 def main():
     """
