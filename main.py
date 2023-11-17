@@ -13,6 +13,7 @@ import time
 import pickle
 from dotenv import load_dotenv
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -396,10 +397,19 @@ async def send_reply(update: Update, context, text: str):
         None: This function sends a message but does not return any value.
     """
     if update.message.chat.type == 'private' and PP_REPLY_TO_PRIVATE:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=text)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, 
+            text=text, 
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=True
+        )
         logger.info("Sent private reply.")
     else:
-        await update.message.reply_text(text)
+        await update.message.reply_text(
+            text, 
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=True
+        )
         logger.info("Sent public reply.")
 
 async def news_command(update: Update, context: CallbackContext):
