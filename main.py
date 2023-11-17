@@ -43,9 +43,6 @@ PP_NEWSAPI_PAGESIZE = int(os.getenv('PP_NEWSAPI_PAGESIZE', '50'))
 PP_YT_PLAYLIST_ID = os.getenv('PP_YT_PLAYLIST_ID')
 PP_YT_AWAITING_LINK = {}
 
-# Initialize NewsAPI
-newsapi = NewsApiClient(api_key=PP_NEWSAPI_KEY)
-
 # OpenAI API configuration
 openai.api_key = PP_OPENAI_TOKEN
 
@@ -405,6 +402,15 @@ async def send_reply(update: Update, context, text: str):
         await update.message.reply_text(text)
         logger.info("Sent public reply.")
 
+async def news_command(update: Update, context: CallbackContext):
+    user_input = ' '.join(context.args) or 'latest news'
+
+    articles = fetch_bing_news(user_input)
+    if articles:
+        await summarize_with_gpt4(articles, lambda text: send_reply(update, context, text))
+    else:
+        await send_reply(update, context, "No relevant news articles found.")
+
 def main():
     """
     Main function for running the Telegram bot application.
@@ -436,7 +442,7 @@ def main():
         filters.Regex(re.compile(r'[\U0001F914]')) & filters.UpdateType.MESSAGES,
         detect_fallacy
     )
-    news_handler = CommandHandler('news', handle_news_request)
+    news_handler = CommandHandler('news', news_command)
     get_song_handler = CommandHandler('getsong', get_song)
     add_song_handler = CommandHandler('addsong', add_song)
     youtube_link_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, receive_youtube_link)
