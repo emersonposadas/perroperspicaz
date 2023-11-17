@@ -30,7 +30,8 @@ def fetch_bing_news(query):
         response.raise_for_status()  # This will raise an exception for HTTP errors
         news_result = response.json()
 
-        print("News Result:", news_result)  # For debugging
+        # Log detailed news results for debugging
+        logger.debug("News Result: %s", news_result)
 
         articles = news_result.get('value', [])
         if not articles:
@@ -47,12 +48,10 @@ async def summarize_with_gpt4(articles, send_reply_func):
     # Combine the titles and descriptions of all articles into one text
     combined_text = ' '.join([f"{article['name']}. {article['description']}" for article in articles])
 
-
     # Construct the prompt for summarization
     prompt = PP_SUMMARIZATION_PROMPT + combined_text
 
     try:
-        # Make the request to OpenAI's GPT-4
         response = openai.Completion.create(
             engine=PP_OPENAI_ENGINE,
             prompt=prompt,
@@ -63,7 +62,7 @@ async def summarize_with_gpt4(articles, send_reply_func):
         summary = response.choices[0].text.strip() if response.choices else "No clear summary available."
 
         # Log the summary generation
-        logger.info("Generated summary using OpenAI GPT-4.")
+        logger.info("Generated summary using %s.", PP_OPENAI_ENGINE)
 
         # Send the summary using the provided callback function
         await send_reply_func(summary)
@@ -71,5 +70,3 @@ async def summarize_with_gpt4(articles, send_reply_func):
         # Log any errors
         logger.error(f"Error generating summary: {e}")
         await send_reply_func("Error in generating summary.")
-
-    
