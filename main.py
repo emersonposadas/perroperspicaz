@@ -13,7 +13,6 @@ import time
 import pickle
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -26,6 +25,7 @@ from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
 from news_handler import fetch_bing_news, summarize_with_gpt4
 from fx_handlers import fx_command
+from bot_utils import send_reply
 import openai
 
 # Load environment variables from .env file
@@ -37,7 +37,6 @@ PP_ENABLE_FILE_LOGGING = os.getenv('PP_ENABLE_FILE_LOGGING', 'false').lower() ==
 PP_LOG_FILE_PATH = os.getenv('PP_LOG_FILE_PATH', 'bot.log')
 PP_OPENAI_ENGINE = os.getenv('PP_OPENAI_ENGINE', 'gpt-4')
 PP_FALLACY_PROMPT = os.getenv('PP_FALLACY_PROMPT')
-PP_REPLY_TO_PRIVATE = os.getenv('PP_REPLY_TO_PRIVATE', 'false').lower() == 'true'
 PP_WELCOME_TEXT = os.getenv('PP_WELCOME_TEXT')
 PP_NEWSAPI_KEY = os.getenv('PP_NEWSAPI_KEY')
 PP_NEWSAPI_PAGESIZE = int(os.getenv('PP_NEWSAPI_PAGESIZE', '50'))
@@ -165,7 +164,8 @@ async def add_song(update: Update, context: CallbackContext):
     """
     user_id = update.effective_user.id
     PP_YT_AWAITING_LINK[user_id] = True  # Set the flag to True for this user
-    await update.message.reply_text("Please send the YouTube link.")
+    
+    await send_reply(update, context, "Please send the YouTube link.")
 
 async def receive_youtube_link(update: Update, context: CallbackContext):
     """
@@ -190,7 +190,7 @@ async def receive_youtube_link(update: Update, context: CallbackContext):
         logger.info("Received YouTube link %s", youtube_link)
 
         result = add_song_to_playlist(youtube_link, PP_YT_PLAYLIST_ID)
-        await update.message.reply_text(result)
+        await send_reply(update, context, result)
 
         PP_YT_AWAITING_LINK[user_id] = False  # Reset the flag
         logger.info("Processed YouTube link: %s", youtube_link)
@@ -273,18 +273,21 @@ async def get_song(update: Update, context: CallbackContext):
         video_id = selected_song["snippet"]["resourceId"]["videoId"]
         song_url = f"https://www.youtube.com/watch?v={video_id}"
 
-        await update.message.reply_text(
-            f"🎶 Here's a tune I picked just for you!: {title}\n"
-            f"🔗 Tap to listen: {song_url}"
-        )
+        message = f"🎶 Here's a tune I picked just for you!: {title}\n" + \
+                  f"🔗 Tap to listen: {song_url}"
+
+        await send_reply(update, context, message)
         logger.info("Recommended song: %s URL: %s", title, song_url)
+
     except HttpError as e:
         logger.error("Error fetching songs from playlist: %s", e)
-        await update.message.reply_text("Failed to fetch song from playlist.")
+        # Use send_reply for error messages too
+        await send_reply(update, context, "Failed to fetch song from playlist.")
+
     except Exception as e:
         logger.error("An unexpected error occurred: %s", e, exc_info=True)
-        await update.message.reply_text("An error occurred while processing your request.")
-
+        # Use send_reply for error messages too
+        await send_reply(update, context, "An error occurred while processing your request.")
 
 def extract_video_id(song_url):
     """
@@ -379,38 +382,6 @@ async def detect_fallacy(update: Update, context):
         logger.info("Analyzing for fallacies: %s", replied_message.text)
         answer = setup_openai_response(PP_FALLACY_PROMPT, replied_message.text)
         await send_reply(update, context, answer)
-
-async def send_reply(update: Update, context, text: str):
-    """
-    Sends a reply to a Telegram message either in private or in the same chat.
-
-    This asynchronous function determines the type of chat from which the message originated 
-    and sends a reply accordingly. If the chat is private and the bot is configured to reply 
-    to private messages, it sends a private message. Otherwise, it replies in the same chat.
-
-    Args:
-        update (Update): An object representing an incoming update.
-        context: The context passed by the Telegram bot framework, used to send messages.
-        text (str): The text to be sent as a reply.
-
-    Returns:
-        None: This function sends a message but does not return any value.
-    """
-    if update.message.chat.type == 'private' and PP_REPLY_TO_PRIVATE:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id, 
-            text=text, 
-            parse_mode=ParseMode.MARKDOWN,
-            disable_web_page_preview=True
-        )
-        logger.info("Sent private reply.")
-    else:
-        await update.message.reply_text(
-            text, 
-            parse_mode=ParseMode.MARKDOWN,
-            disable_web_page_preview=True
-        )
-        logger.info("Sent public reply.")
 
 async def news_command(update: Update, context: CallbackContext):
     user_input = ' '.join(context.args) or 'latest news'
