@@ -7,13 +7,14 @@ from telegram import Update
 from telegram.ext import CallbackContext
 import freecurrencyapi
 from dotenv import load_dotenv
+from bot_utils import send_reply
 
 load_dotenv()
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-PP_FXAPI_KEY = os.getenv('PP_FXAPI_KEY')  # Load API key from environment variables
+PP_FXAPI_KEY = os.getenv('PP_FXAPI_KEY')
 
 # Initialize the Free Currency API client
 client = freecurrencyapi.Client(PP_FXAPI_KEY)
@@ -30,9 +31,9 @@ def fetch_exchange_rate(base_currency, target_currency):
         float: The exchange rate, or None if an error occurs.
     """
     try:
-        logger.info(f"Fetching latest exchange rates for {base_currency} to {target_currency}")
+        logger.info("Fetching latest exchange rates for %s to %s", base_currency, target_currency)
         latest_rates = client.latest()
-        
+
         if base_currency not in latest_rates['data'] or \
                 target_currency not in latest_rates['data']:
             logger.error("Currency not found in latest rates data.")
@@ -45,7 +46,7 @@ def fetch_exchange_rate(base_currency, target_currency):
         exchange_rate = target_rate / base_rate
         return exchange_rate
     except Exception as e:
-        logger.error(f"Exception in fetch_exchange_rate: {e}")
+        logger.error("Exception in fetch_exchange_rate: %s", e)
         return None
 
 async def fx_command(update: Update, context: CallbackContext):
@@ -62,7 +63,7 @@ async def fx_command(update: Update, context: CallbackContext):
         return
 
     base_currency, target_currency = args
-    logger.info(f"Received /fx command for {base_currency} to {target_currency}")
+    logger.info("Received /fx command for %s to %s", base_currency, target_currency)
     exchange_rate = fetch_exchange_rate(base_currency.upper(), target_currency.upper())
 
     if exchange_rate is not None:
@@ -75,4 +76,4 @@ async def fx_command(update: Update, context: CallbackContext):
         response_message = "Unable to retrieve the exchange rate at the moment."
         logger.warning("Failed to retrieve exchange rate.")
 
-    await update.message.reply_text(response_message)
+    await send_reply(update, context, response_message)
